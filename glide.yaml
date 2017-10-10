@@ -1,0 +1,6 @@
+package: bitbucket.org/eedkevin/28car-crawler
+import:
+- package: github.com/PuerkitoBio/fetchbot
+  version: ^1.1.2
+- package: github.com/PuerkitoBio/goquery
+  version: ^1.1.0
