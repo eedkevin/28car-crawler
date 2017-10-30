@@ -1,229 +1,212 @@
 package main
 
 import (
-	"bytes"
-	"flag"
 	"fmt"
-	"log"
 	"net/http"
-	"net/url"
-	"runtime"
+	"regexp"
 	"strings"
-	"sync"
-	"time"
+	"strconv"
 
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
-	"regexp"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/encoding/traditionalchinese"
+	mgo "gopkg.in/mgo.v2"
 )
 
 var (
-	// Protect access to dup
-	mu sync.Mutex
-	// Duplicates table
-	dup = map[string]bool{}
+	seed     = "http://28car.com/sell_lst.php"
+	base     = "http://28car.com/sell_dsp.php?h_vid="
+	pageUrl  = "http://28car.com/sell_lst.php?h_page="
 
-	// Command-line flags
-	seed        = flag.String("seed", "http://28car.com/sell_lst.php", "seed URL")
-	cancelAfter = flag.Duration("cancelafter", 0, "automatically cancel the fetchbot after a given time")
-	cancelAtURL = flag.String("cancelat", "", "automatically cancel the fetchbot at a given URL")
-	stopAfter   = flag.Duration("stopafter", 0, "automatically stop the fetchbot after a given time")
-	stopAtURL   = flag.String("stopat", "", "automatically stop the fetchbot at a given URL")
-	memStats    = flag.Duration("memstats", 0, "display memory statistics at a given interval")
+	jobQueue  *fetchbot.Queue
+	pageQueue *fetchbot.Queue
 
-	// regexp for links
-	r = regexp.MustCompile(`\d+`)
-
-	// base url
-	baseUrl     = "http://28car.com/sell_dsp.php?h_vid="
+	// regex
+	regexVid = regexp.MustCompile(`\d+`)
+	regexNextPage = regexp.MustCompile(`goPage\((?P<num>\d+?)\)`)
+	regexPrice = regexp.MustCompile(`HKD\$\ ?(?P<num>[+-]?[0-9]{1,3}(?:,?[0-9])*(?:\.[0-9]{1,2})?)`)
+	regexOrgPrice = regexp.MustCompile(`原價.?\$\ ?(?P<num>[+-]?[0-9]{1,3}(?:,?[0-9])*(?:\.[0-9]{1,2})?)`)
 )
 
+type Car struct {
+	Vid string
+	Sid string
+	Type string
+	Brand string
+	Model string
+	Seat string
+	Engine string
+	Shift string
+	ProductionYear string
+	Description string
+	OrigPrice int
+	CurrPrice int
+	Contact string
+	UploadTime string
+}
+
 func main() {
-	flag.Parse()
+	linkFetcher := fetchbot.New(fetchbot.HandlerFunc(jobHandler))
+	jobQueue = linkFetcher.Start()
+	pageFetcher := fetchbot.New(fetchbot.HandlerFunc(pageHandler))
+	pageQueue = pageFetcher.Start()
 
-	// Parse the provided seed
-	u, err := url.Parse(*seed)
+	jobQueue.SendStringGet(seed)
+
+	jobQueue.Block()
+	pageQueue.Block()
+}
+
+func jobHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("error: %s\n", err)
+		return
 	}
+	fmt.Printf("[%d] %s %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL())
 
-	// Create the muxer
-	mux := fetchbot.NewMux()
+	nextPageSelector := "input#btn_nxt"
+	doc, _ := goquery.NewDocumentFromResponse(res)
 
-	// Handle all errors the same
-	mux.HandleErrors(fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
-		fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
-	}))
-
-	// Handle GET requests for html responses, to parse the body and enqueue all links as HEAD
-	// requests.
-	mux.Response().Method("GET").ContentType("text/html").Handler(fetchbot.HandlerFunc(
-		func(ctx *fetchbot.Context, res *http.Response, err error) {
-			// Process the body to find the links
-			doc, err := goquery.NewDocumentFromResponse(res)
-			if err != nil {
-				fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
-				return
-			}
-			// Enqueue all links as HEAD requests
-			enqueueLinks(ctx, doc)
-		}))
-
-	// Handle HEAD requests for html responses coming from the source host - we don't want
-	// to crawl links from other hosts.
-	mux.Response().Method("HEAD").Host(u.Host).ContentType("text/html").Handler(fetchbot.HandlerFunc(
-		func(ctx *fetchbot.Context, res *http.Response, err error) {
-			if _, err := ctx.Q.SendStringGet(ctx.Cmd.URL().String()); err != nil {
-				fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
-			}
-		}))
-
-	// Create the Fetcher, handle the logging first, then dispatch to the Muxer
-	h := logHandler(mux)
-	if *stopAtURL != "" || *cancelAtURL != "" {
-		stopURL := *stopAtURL
-		if *cancelAtURL != "" {
-			stopURL = *cancelAtURL
-		}
-		h = stopHandler(stopURL, *cancelAtURL != "", logHandler(mux))
+	nxtHtml, exists := doc.Find(nextPageSelector).First().Attr("onclick")
+	if !exists {
+		fmt.Println("At the end of the site. Last page - " + ctx.Cmd.URL().String())
+		return
 	}
-	f := fetchbot.New(h)
+	pageNum := regexNextPage.FindStringSubmatch(nxtHtml)
+	nextPageUrl := pageUrl + pageNum[1]
+	jobQueue.SendStringGet(nextPageUrl)
 
-	// First mem stat print must be right after creating the fetchbot
-	if *memStats > 0 {
-		// Print starting stats
-		printMemStats(nil)
-		// Run at regular intervals
-		runMemStats(f, *memStats)
-		// On exit, print ending stats after a GC
-		defer func() {
-			runtime.GC()
-			printMemStats(nil)
-		}()
-	}
-
-	// Start processing
-	q := f.Start()
-
-	// if a stop or cancel is requested after some duration, launch the goroutine
-	// that will stop or cancel.
-	if *stopAfter > 0 || *cancelAfter > 0 {
-		after := *stopAfter
-		stopFunc := q.Close
-		if *cancelAfter != 0 {
-			after = *cancelAfter
-			stopFunc = q.Cancel
-		}
-
-		go func() {
-			c := time.After(after)
-			<-c
-			stopFunc()
-		}()
-	}
-
-	// Enqueue the seed, which is the first entry in the dup map
-	dup[*seed] = true
-	_, err = q.SendStringGet(*seed)
-	if err != nil {
-		fmt.Printf("[ERR] GET %s - %s\n", *seed, err)
-	}
-	q.Block()
-}
-
-func runMemStats(f *fetchbot.Fetcher, tick time.Duration) {
-	var mu sync.Mutex
-	var di *fetchbot.DebugInfo
-
-	// Start goroutine to collect fetchbot debug info
-	go func() {
-		for v := range f.Debug() {
-			mu.Lock()
-			di = v
-			mu.Unlock()
-		}
-	}()
-	// Start ticker goroutine to print mem stats at regular intervals
-	go func() {
-		c := time.Tick(tick)
-		for _ = range c {
-			mu.Lock()
-			printMemStats(di)
-			mu.Unlock()
-		}
-	}()
-}
-
-func printMemStats(di *fetchbot.DebugInfo) {
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
-	buf := bytes.NewBuffer(nil)
-	buf.WriteString(strings.Repeat("=", 72) + "\n")
-	buf.WriteString("Memory Profile:\n")
-	buf.WriteString(fmt.Sprintf("\tAlloc: %d Kb\n", mem.Alloc/1024))
-	buf.WriteString(fmt.Sprintf("\tTotalAlloc: %d Kb\n", mem.TotalAlloc/1024))
-	buf.WriteString(fmt.Sprintf("\tNumGC: %d\n", mem.NumGC))
-	buf.WriteString(fmt.Sprintf("\tGoroutines: %d\n", runtime.NumGoroutine()))
-	if di != nil {
-		buf.WriteString(fmt.Sprintf("\tNumHosts: %d\n", di.NumHosts))
-	}
-	buf.WriteString(strings.Repeat("=", 72))
-	fmt.Println(buf.String())
-}
-
-// stopHandler stops the fetcher if the stopurl is reached. Otherwise it dispatches
-// the call to the wrapped Handler.
-func stopHandler(stopurl string, cancel bool, wrapped fetchbot.Handler) fetchbot.Handler {
-	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
-		if ctx.Cmd.URL().String() == stopurl {
-			fmt.Printf(">>>>> STOP URL %s\n", ctx.Cmd.URL())
-			// generally not a good idea to stop/block from a handler goroutine
-			// so do it in a separate goroutine
-			go func() {
-				if cancel {
-					ctx.Q.Cancel()
-				} else {
-					ctx.Q.Close()
-				}
-			}()
-			return
-		}
-		wrapped.Handle(ctx, res, err)
-	})
-}
-
-// logHandler prints the fetch information and dispatches the call to the wrapped Handler.
-func logHandler(wrapped fetchbot.Handler) fetchbot.Handler {
-	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
-		if err == nil {
-			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
-		}
-		wrapped.Handle(ctx, res, err)
-	})
-}
-
-func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
-	mu.Lock()
 	doc.Find("div#tch_box").Each(func(i int, s *goquery.Selection) {
-		s.Find("td[onclick^='goDsp']").Each(func(i int, s1 *goquery.Selection) {
-			targetStr, _ := s1.Attr("onclick")
-			vid := r.FindAllString(targetStr, -1)[1]
-			val := baseUrl + vid
-			// Resolve address
-			u, err := ctx.Cmd.URL().Parse(val)
-			if err != nil {
-				fmt.Printf("error: resolve URL %s - %s\n", val, err)
-				return
-			}
-			if !dup[u.String()] {
-				if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
-					fmt.Printf("error: enqueue head %s - %s\n", u, err)
-				} else {
-					fmt.Println(u)
-					dup[u.String()] = true
-				}
-			}
-		})
+		rows := s.Find("td[onclick^='goDsp']")
+
+		vidHtml, exists := rows.First().Attr("onclick")
+		if !exists {
+			fmt.Println("Page item contains no vid. Page - " + ctx.Cmd.URL().String())
+		}
+		vid := regexVid.FindAllString(vidHtml, -1)
+		itemUrl := base + vid[1]
+		pageQueue.SendStringGet(itemUrl)
 	})
-	mu.Unlock()
+}
+func fakePageHandler(ctx *fetchbot.Context, res *http.Response, err error) {
+	if err != nil {
+		fmt.Printf("error: %s\n", err)
+		return
+	}
+	fmt.Printf("[%d] %s %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL())
+}
+
+func pageHandler(ctx *fetchbot.Context, res *http.Response, err error) {
+	if err != nil {
+		fmt.Printf("error: %s\n", err)
+		return
+	}
+	fmt.Printf("[%d] %s %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL())
+
+	doc, _ := goquery.NewDocumentFromResponse(res)
+
+	vid := regexVid.FindAllString(ctx.Cmd.URL().RawQuery, -1)[0]
+	fmt.Println("vid:" + vid)
+
+	sidSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(1) > td.formt"
+	sid := doc.Find(sidSelector).First().Text()
+	fmt.Println("sid:" + sid)
+
+	typeSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(2) > td.formt"
+	typeText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(typeSelector).First().Text()))
+	fmt.Println("车类:" + typeText)
+
+	brandSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(3) > td.formt"
+	brandText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(brandSelector).First().Text()))
+	fmt.Println("车场:" + brandText)
+
+	modelSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(4) > td.formt > a"
+	modelText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(modelSelector).First().Text()))
+	fmt.Println("型号:" + modelText)
+
+	seatSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(6) > td.formt"
+	seatText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(seatSelector).First().Text()))
+	fmt.Println("座位:" + seatText)
+
+	engineSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(6) > td.formt"
+	engineText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(engineSelector).First().Text()))
+	fmt.Println("容积:" + engineText)
+
+	shiftSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(7) > td.formt"
+	shiftText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(shiftSelector).First().Text()))
+	fmt.Println("传动:" + shiftText)
+
+	productionYearSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(8) > td.formt"
+	productionYearText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(productionYearSelector).First().Text()))
+	fmt.Println("年份:" + productionYearText)
+
+	descSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(9) > td.formt"
+	descText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(descSelector).First().Text()))
+	fmt.Println("简评:" + descText)
+
+	priceSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(10) > td.formt > table > tbody > tr > td:nth-child(1)"
+	priceStr, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(priceSelector).First().Text()))
+	priceText := regexPrice.FindStringSubmatch(priceStr)[1]
+	currPrice, _ := strconv.Atoi(strings.Replace(priceText, ",", "", -1))
+	fmt.Printf("售价:%d\n", currPrice)
+
+	origPriceArr := regexOrgPrice.FindStringSubmatch(priceStr)
+	var origPrice int
+	if len(origPriceArr) != 0 {
+		origPrice, _ = strconv.Atoi(strings.Replace(origPriceArr[1], ",", "", -1))
+		fmt.Printf("原价:%d\n", origPrice)
+	}
+
+	contactSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(11) > td.formt"
+	contactText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(contactSelector).First().Text()))
+	fmt.Println("联络人:" + contactText)
+
+	updateTimeSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(12) > td.formt"
+	updateTimeText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(updateTimeSelector).First().Text()))
+	fmt.Println("更新日期:" + updateTimeText)
+
+	car := Car{
+		Vid: 			vid,
+		Sid:            sid,
+		Type:           typeText,
+		Brand:          brandText,
+		Model:          modelText,
+		Seat:           seatText,
+		Engine:         engineText,
+		Shift:          shiftText,
+		ProductionYear: productionYearText,
+		Description:    descText,
+		OrigPrice:      origPrice,
+		CurrPrice:      currPrice,
+		Contact:        contactText,
+		UploadTime:     updateTimeText,
+	}
+
+	errPersist := persist(&car)
+	if errPersist != nil {
+		fmt.Println("error on persisting data")
+	}
+}
+
+func persist(car *Car) error {
+	session, err := mgo.Dial("localhost:27017")
+	if err != nil {
+		panic(err)
+	}
+	defer session.Close()
+
+	// Optional. Switch the session to a monotonic behavior.
+	session.SetMode(mgo.Monotonic, true)
+
+	c := session.DB("28car").C("cars")
+	err = c.Insert(car)
+	return err
+
+	//result := Car{}
+	//err = c.Find(bson.M{"sid": car.Sid}).One(&result)
+	//if err != nil {
+	//	fmt.Println("error on getting database entity")
+	//}
+	//fmt.Println("Car:", result.Model)
 }
