@@ -83,6 +83,7 @@ func jobHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 		vidHtml, exists := rows.First().Attr("onclick")
 		if !exists {
 			fmt.Println("Page item contains no vid. Page - " + ctx.Cmd.URL().String())
+			return
 		}
 		vid := regexVid.FindAllString(vidHtml, -1)
 		itemUrl := base + vid[1]
@@ -125,7 +126,7 @@ func pageHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 	modelText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(modelSelector).First().Text()))
 	fmt.Println("型号:" + modelText)
 
-	seatSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(6) > td.formt"
+	seatSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(5) > td.formt"
 	seatText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(seatSelector).First().Text()))
 	fmt.Println("座位:" + seatText)
 
