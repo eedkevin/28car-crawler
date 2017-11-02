@@ -7,6 +7,9 @@ import (
 	"strings"
 	"strconv"
 
+	"crypto/md5"
+	"encoding/hex"
+
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/text/transform"
@@ -183,6 +186,10 @@ func pageHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 	updateTimeText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(updateTimeSelector).First().Text()))
 	fmt.Println("更新日期:" + updateTimeText)
 
+	hasher:= md5.New()
+	hasher.Write([]byte(vid+updateTimeText))
+	hash := hex.EncodeToString(hasher.Sum(nil))
+
 	car := Car{
 		Vid: 			vid,
 		Sid:            sid,
@@ -198,6 +205,7 @@ func pageHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 		CurrPrice:      currPrice,
 		Contact:        contactText,
 		UploadTime:     updateTimeText,
+		Hash: hash,
 	}
 
 	errPersist := persist(&car)
