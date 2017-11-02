@@ -1,8 +1,16 @@
-hash: 9ce1bfa77424e8d18d747522c2ef654a26b7dbb29a952109aa8d7d622f55c981
-updated: 2017-10-30T09:51:35.949122032+08:00
+hash: 1c5f337372312591803626a6e8c60ff35b45c9fcdf7a6765117305f8a8951517
+updated: 2017-10-31T16:14:44.538659814+08:00
 imports:
 - name: github.com/andybalholm/cascadia
   version: 349dd0209470eabd9514242c688c403c0926d266
+- name: github.com/go-redis/redis
+  version: 35248155a505a84811be81a2aab1c423317447be
+  subpackages:
+  - internal
+  - internal/consistenthash
+  - internal/hashtag
+  - internal/pool
+  - internal/proto
 - name: github.com/PuerkitoBio/fetchbot
   version: 61eb5a10440a8313c73a7ff88602380872bff2ce
 - name: github.com/PuerkitoBio/goquery

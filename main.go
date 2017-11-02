@@ -12,6 +12,7 @@ import (
 	"golang.org/x/text/transform"
 	"golang.org/x/text/encoding/traditionalchinese"
 	mgo "gopkg.in/mgo.v2"
+	"github.com/go-redis/redis"
 )
 
 var (
@@ -21,6 +22,9 @@ var (
 
 	jobQueue  *fetchbot.Queue
 	pageQueue *fetchbot.Queue
+
+	redisClient *redis.Client
+	redisSub    *redis.PubSub
 
 	// regex
 	regexVid = regexp.MustCompile(`\d+`)
@@ -44,15 +48,26 @@ type Car struct {
 	CurrPrice int
 	Contact string
 	UploadTime string
+	Hash string
 }
 
 func main() {
+	redisClient = redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+	redisSub = redisClient.Subscribe("jobs")
+
 	linkFetcher := fetchbot.New(fetchbot.HandlerFunc(jobHandler))
 	jobQueue = linkFetcher.Start()
 	pageFetcher := fetchbot.New(fetchbot.HandlerFunc(pageHandler))
 	pageQueue = pageFetcher.Start()
 
 	jobQueue.SendStringGet(seed)
+
+	go func() {
+		for {
+			msg, _ := redisSub.ReceiveMessage()
+			pageQueue.SendStringGet(msg.Payload)
+		}
+	}()
 
 	jobQueue.Block()
 	pageQueue.Block()
@@ -87,7 +102,8 @@ func jobHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 		}
 		vid := regexVid.FindAllString(vidHtml, -1)
 		itemUrl := base + vid[1]
-		pageQueue.SendStringGet(itemUrl)
+		//pageQueue.SendStringGet(itemUrl)
+		redisClient.Publish("jobs", itemUrl)
 	})
 }
 func fakePageHandler(ctx *fetchbot.Context, res *http.Response, err error) {
@@ -203,11 +219,4 @@ func persist(car *Car) error {
 	c := session.DB("28car").C("cars")
 	err = c.Insert(car)
 	return err
-
-	//result := Car{}
-	//err = c.Find(bson.M{"sid": car.Sid}).One(&result)
-	//if err != nil {
-	//	fmt.Println("error on getting database entity")
-	//}
-	//fmt.Println("Car:", result.Model)
 }
