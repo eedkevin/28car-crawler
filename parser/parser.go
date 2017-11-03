@@ -16,47 +16,52 @@ import (
 )
 
 var (
-	itemUrlTmpl = "http://28car.com/sell_dsp.php?h_vid="
-	pageUrlTmpl = "http://28car.com/sell_lst.php?h_page="
-
 	// regex
 	regexVid      = regexp.MustCompile(`\d+`)
 	regexNextPage = regexp.MustCompile(`goPage\((?P<num>\d+?)\)`)
-	regexPrice    = regexp.MustCompile(`HKD\$\ ?(?P<num>[+-]?[0-9]{1,3}(?:,?[0-9])*(?:\.[0-9]{1,2})?)`)
-	regexOrgPrice = regexp.MustCompile(`原價.?\$\ ?(?P<num>[+-]?[0-9]{1,3}(?:,?[0-9])*(?:\.[0-9]{1,2})?)`)
+	regexMaxPage  = regexp.MustCompile(`genPage\((?P<max>\d+?),\s?(?P<curr>\d+?)\)`)
+	regexPrice    = regexp.MustCompile(`HKD\$\s?(?P<num>[+-]?[0-9]{1,3}(?:,?[0-9])*(?:\.[0-9]{1,2})?)`)
+	regexOrgPrice = regexp.MustCompile(`原價.?\$\s?(?P<num>[+-]?[0-9]{1,3}(?:,?[0-9])*(?:\.[0-9]{1,2})?)`)
 )
 
-func ParseLink(res *http.Response) Task {
-	task := Task{}
+func ParseLink(res *http.Response) string {
+	doc, _ := goquery.NewDocumentFromResponse(res)
+
+	maxPageSelector := "select#h_page > script"
+	maxPageHtml, _ := doc.Find(maxPageSelector).First().Html()
+	fmt.Println(maxPageSelector)
+	pages := regexMaxPage.FindStringSubmatch(maxPageHtml)
+	if len(pages) > 0 {
+		// return the max page number
+		return pages[1]
+	} else {
+		fmt.Println("Page layout has been changed, please update the Link Parser. Page - " + res.Request.URL.String())
+		return "EOF"
+	}
+}
+
+func ParsePage(res *http.Response) []string {
+	vidArr := make([]string, 0)
 
 	doc, _ := goquery.NewDocumentFromResponse(res)
 
-	nextPageSelector := "input#btn_nxt"
-	nxtHtml, exists := doc.Find(nextPageSelector).First().Attr("onclick")
-	if !exists {
-		fmt.Println("At the end of the site. Last page - " + res.Request.URL.String())
-		task.NextPageUrl = "EOF"
-	}
-	pageNum := regexNextPage.FindStringSubmatch(nxtHtml)
-	nextPageUrl := pageUrlTmpl + pageNum[1]
-	task.NextPageUrl = nextPageUrl
-
-	doc.Find("div#tch_box").Each(func(i int, s *goquery.Selection) {
-		rows := s.Find("td[onclick^='goDsp']")
-
-		vidHtml, exists := rows.First().Attr("onclick")
+	itemSelector := "div#tch_box"
+	itemUrlSelector := "td[onclick^='goDsp']"
+	doc.Find(itemSelector).Each(func(i int, s *goquery.Selection) {
+		vidHtml, exists := s.Find(itemUrlSelector).First().Attr("onclick")
 		if !exists {
 			fmt.Println("Page item contains no vid. Page - " + res.Request.URL.String())
 			return
 		}
 		vid := regexVid.FindAllString(vidHtml, -1)
-		u := itemUrlTmpl + vid[1]
-		task.ItemArray = append(task.ItemArray, u)
+		if len(vid) > 1 {
+			vidArr = append(vidArr, vid[1])
+		}
 	})
-	return task
+	return vidArr
 }
 
-func ParsePage(res *http.Response) *database.Car {
+func ParseItem(res *http.Response) *database.Car {
 	doc, _ := goquery.NewDocumentFromResponse(res)
 
 	vid := regexVid.FindAllString(res.Request.URL.RawQuery, -1)[0]
