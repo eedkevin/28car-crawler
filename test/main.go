@@ -7,21 +7,21 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
-	"regexp"
 
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
-	"golang.org/x/text/transform"
 	"golang.org/x/text/encoding/traditionalchinese"
+	"golang.org/x/text/transform"
 )
 
 var (
 	// Protect access to dup
-	mu sync.Mutex
+	mu    sync.Mutex
 	mutex sync.Mutex
 	// Duplicates table
 	dup = map[string]bool{}
@@ -36,12 +36,12 @@ var (
 	memStats    = flag.Duration("memstats", 0, "display memory statistics at a given interval")
 
 	// regexp for links
-	regexLink  = regexp.MustCompile(`\d+`)
-	regexPrice = regexp.MustCompile(`HKD\$\ ?(?P<num>[+-]?[0-9]{1,3}(?:,?[0-9])*(?:\.[0-9]{1,2})?)`)
+	regexLink     = regexp.MustCompile(`\d+`)
+	regexPrice    = regexp.MustCompile(`HKD\$\ ?(?P<num>[+-]?[0-9]{1,3}(?:,?[0-9])*(?:\.[0-9]{1,2})?)`)
 	regexOrgPrice = regexp.MustCompile(`原價.?\$\ ?(?P<num>[+-]?[0-9]{1,3}(?:,?[0-9])*(?:\.[0-9]{1,2})?)`)
 
 	// base url
-	baseUrl     = "http://28car.com/sell_dsp.php?h_vid="
+	baseUrl = "http://28car.com/sell_dsp.php?h_vid="
 )
 
 func main() {

@@ -97,3 +97,6 @@ Temporary Items
 
 # third party libraries
 /vendor
+
+# binary
+28car-crawler
