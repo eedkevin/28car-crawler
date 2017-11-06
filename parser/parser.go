@@ -3,6 +3,7 @@ package parser
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -10,7 +11,6 @@ import (
 	"strings"
 
 	"bitbucket.org/eedkevin/28car-crawler/database"
-	"errors"
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/text/encoding/traditionalchinese"
 	"golang.org/x/text/transform"
