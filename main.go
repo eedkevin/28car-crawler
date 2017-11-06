@@ -20,13 +20,17 @@ var (
 	redisHost     = flag.String("redis-host", "localhost:6379", "redis host")
 	mongoHost     = flag.String("mongo-host", "localhost:27017", "mongo host")
 
+	// memory queue (channels)
 	linkQueue *fetchbot.Queue
 	pageQueue *fetchbot.Queue
 	itemQueue *fetchbot.Queue
 
+	// redis queue
 	pageQueueRedis *redis.MyRedis
 	itemQueueRedis *redis.MyRedis
-	db             *database.MyMongo
+
+	// database
+	db *database.MyMongo
 )
 
 func main() {
