@@ -4,8 +4,18 @@ import (
 	"gopkg.in/mgo.v2"
 )
 
-func Persist(car *Car) error {
-	session, err := mgo.Dial("localhost:27017")
+type MyMongo struct {
+	host string
+}
+
+func New(host string) *MyMongo {
+	return &MyMongo{
+		host: host,
+	}
+}
+
+func (myMongo *MyMongo) Persist(car *Car) error {
+	session, err := mgo.Dial(myMongo.host)
 	if err != nil {
 		panic(err)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,9 +13,12 @@ import (
 )
 
 var (
-	seed        = "http://28car.com/sell_lst.php"
-	pageUrlTmpl = "http://28car.com/sell_lst.php?h_page="
-	itemUrlTmpl = "http://28car.com/sell_dsp.php?h_vid="
+	// Command-line flags
+	seed          = flag.String("seed", "http://28car.com/sell_lst.php", "seed URL")
+	pageUrlPrefix = flag.String("page-url-prefix", "http://28car.com/sell_lst.php?h_page=", "page URL prefix")
+	itemUrlPrefix = flag.String("item-url-prefix", "http://28car.com/sell_dsp.php?h_vid=", "item URL prefix")
+	redisHost     = flag.String("redis-host", "localhost:6379", "redis host")
+	mongoHost     = flag.String("mongo-host", "localhost:27017", "mongo host")
 
 	linkQueue *fetchbot.Queue
 	pageQueue *fetchbot.Queue
@@ -22,11 +26,15 @@ var (
 
 	pageQueueRedis *redis.MyRedis
 	itemQueueRedis *redis.MyRedis
+	db             *database.MyMongo
 )
 
 func main() {
-	pageQueueRedis = redis.New("pages")
-	itemQueueRedis = redis.New("items")
+	flag.Parse()
+
+	db = database.New(*mongoHost)
+	pageQueueRedis = redis.New(*redisHost, "pages")
+	itemQueueRedis = redis.New(*redisHost, "items")
 
 	linkFetcher := fetchbot.New(fetchbot.HandlerFunc(linkHandler))
 	linkQueue = linkFetcher.Start()
@@ -38,7 +46,7 @@ func main() {
 	itemQueue = itemFetcher.Start()
 
 	// drop the seed, bang!
-	linkQueue.SendStringGet(seed)
+	linkQueue.SendStringGet(*seed)
 
 	go func() {
 		for {
@@ -77,8 +85,8 @@ func linkHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 			return
 		}
 		for i := 0; i < maxPageNum; i++ {
-			fmt.Println("push page to redis: " + pageUrlTmpl + strconv.Itoa(i))
-			pageQueueRedis.Publish(pageUrlTmpl + strconv.Itoa(i))
+			fmt.Println("push page to redis: " + *pageUrlPrefix + strconv.Itoa(i))
+			pageQueueRedis.Publish(*pageUrlPrefix + strconv.Itoa(i))
 		}
 	}
 }
@@ -92,7 +100,7 @@ func pageHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 
 	vidArr := parser.ParsePage(res)
 	for _, vid := range vidArr {
-		itemQueueRedis.Publish(itemUrlTmpl + vid)
+		itemQueueRedis.Publish(*itemUrlPrefix + vid)
 	}
 }
 
@@ -105,7 +113,7 @@ func itemHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 
 	car := parser.ParseItem(res)
 
-	errPersist := database.Persist(car)
+	errPersist := db.Persist(car)
 	if errPersist != nil {
 		fmt.Printf("error on persisting data: %v\n", errPersist)
 	}

@@ -10,8 +10,8 @@ type MyRedis struct {
 	channel string
 }
 
-func New(channel string) *MyRedis {
-	client := redisClient.NewClient(&redisClient.Options{Addr: "localhost:6379"})
+func New(host string, channel string) *MyRedis {
+	client := redisClient.NewClient(&redisClient.Options{Addr: host})
 
 	redis := MyRedis{
 		client:  client,
