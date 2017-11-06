@@ -79,8 +79,12 @@ func linkHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 	}
 	fmt.Printf("[%d] %s %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL())
 
-	maxPageNumStr := parser.ParseLink(res)
-	if maxPageNumStr == "EOF" {
+	maxPageNumStr, errParse := parser.ParseLink(res)
+	if errParse != nil {
+		// TODO: failback handling
+		fmt.Printf("error on parsing page: %v\n", errParse)
+		return
+	} else if maxPageNumStr == "EOF" {
 		return
 	} else {
 		maxPageNum, strconvErr := strconv.Atoi(maxPageNumStr)
@@ -102,7 +106,13 @@ func pageHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 	}
 	fmt.Printf("[%d] %s %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL())
 
-	vidArr := parser.ParsePage(res)
+	vidArr, errParse := parser.ParsePage(res)
+	if errParse != nil {
+		// failback handling
+		fmt.Printf("error on parsing page: %v\n", errParse)
+		pageQueueRedis.Publish(res.Request.URL.String())
+	}
+
 	for _, vid := range vidArr {
 		itemQueueRedis.Publish(*itemUrlPrefix + vid)
 	}
@@ -115,11 +125,18 @@ func itemHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 	}
 	fmt.Printf("[%d] %s %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL())
 
-	car := parser.ParseItem(res)
+	car, errParse := parser.ParseItem(res)
+	if errParse != nil {
+		// failback handling
+		fmt.Printf("error on parsing page: %v\n", errParse)
+		itemQueueRedis.Publish(ctx.Cmd.URL().String())
+	}
 
 	errPersist := db.Persist(car)
 	if errPersist != nil {
+		// failback handling
 		fmt.Printf("error on persisting data: %v\n", errPersist)
+		itemQueueRedis.Publish(ctx.Cmd.URL().String())
 	}
 }
 

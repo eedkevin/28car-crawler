@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"bitbucket.org/eedkevin/28car-crawler/database"
+	"errors"
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/text/encoding/traditionalchinese"
 	"golang.org/x/text/transform"
@@ -24,29 +25,42 @@ var (
 	regexOrgPrice = regexp.MustCompile(`原價.?\$\s?(?P<num>[+-]?[0-9]{1,3}(?:,?[0-9])*(?:\.[0-9]{1,2})?)`)
 )
 
-func ParseLink(res *http.Response) string {
+func ParseLink(res *http.Response) (string, error) {
 	doc, _ := goquery.NewDocumentFromResponse(res)
 
 	maxPageSelector := "select#h_page > script"
+
+	blockTestSelection := doc.Find(maxPageSelector)
+	if blockTestSelection.Index() < 0 {
+		fmt.Println("Error on parsing page, it's probably been blocked. Page - " + res.Request.URL.String())
+		return "", errors.New("Error on parsing page, it's probably been blocked. Page - " + res.Request.URL.String())
+	}
+
 	maxPageHtml, _ := doc.Find(maxPageSelector).First().Html()
 	fmt.Println(maxPageSelector)
 	pages := regexMaxPage.FindStringSubmatch(maxPageHtml)
 	if len(pages) > 0 {
 		// return the max page number
-		return pages[1]
+		return pages[1], nil
 	} else {
-		fmt.Println("Page layout has been changed, please update the Link Parser. Page - " + res.Request.URL.String())
-		return "EOF"
+		return "EOF", nil
 	}
 }
 
-func ParsePage(res *http.Response) []string {
+func ParsePage(res *http.Response) ([]string, error) {
 	vidArr := make([]string, 0)
 
 	doc, _ := goquery.NewDocumentFromResponse(res)
 
 	itemSelector := "div#tch_box"
 	itemUrlSelector := "td[onclick^='goDsp']"
+
+	blockTestSelection := doc.Find(itemSelector)
+	if blockTestSelection.Index() < 0 {
+		fmt.Println("Error on parsing page, it's probably been blocked. Page - " + res.Request.URL.String())
+		return vidArr, errors.New("Error on parsing page, it's probably been blocked. Page - " + res.Request.URL.String())
+	}
+
 	doc.Find(itemSelector).Each(func(i int, s *goquery.Selection) {
 		vidHtml, exists := s.Find(itemUrlSelector).First().Attr("onclick")
 		if !exists {
@@ -58,16 +72,23 @@ func ParsePage(res *http.Response) []string {
 			vidArr = append(vidArr, vid[1])
 		}
 	})
-	return vidArr
+	return vidArr, nil
 }
 
-func ParseItem(res *http.Response) *database.Car {
+func ParseItem(res *http.Response) (*database.Car, error) {
 	doc, _ := goquery.NewDocumentFromResponse(res)
 
 	vid := regexVid.FindAllString(res.Request.URL.RawQuery, -1)[0]
 	fmt.Println("vid:" + vid)
 
 	sidSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(1) > td.formt"
+
+	blockTestSelection := doc.Find(sidSelector)
+	if blockTestSelection.Index() < 0 {
+		fmt.Println("Error on parsing page, it's probably been blocked. Page - " + res.Request.URL.String())
+		return &database.Car{}, errors.New("Error on parsing page, it's probably been blocked. Page - " + res.Request.URL.String())
+	}
+
 	sid := doc.Find(sidSelector).First().Text()
 	fmt.Println("sid:" + sid)
 
@@ -145,5 +166,5 @@ func ParseItem(res *http.Response) *database.Car {
 		UploadTime:     updateTimeText,
 		Hash:           hash,
 	}
-	return &car
+	return &car, nil
 }
