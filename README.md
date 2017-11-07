@@ -37,7 +37,7 @@ glide rebuild
 ### Run
  - run with customize parameters
 ```
-./28car-crawler --redis-host <redis-host:port> --mongo-host <mongo-host:port>
+./28car-crawler --redis <redis-host:port> --mongo <mongo-host:port>
 ```
  - Or directly run with default parameters if you leave your redis and mongodb as default setting
 ```

@@ -17,8 +17,8 @@ var (
 	seed          = flag.String("seed", "http://28car.com/sell_lst.php", "seed URL")
 	pageUrlPrefix = flag.String("page-url-prefix", "http://28car.com/sell_lst.php?h_page=", "page URL prefix")
 	itemUrlPrefix = flag.String("item-url-prefix", "http://28car.com/sell_dsp.php?h_vid=", "item URL prefix")
-	redisHost     = flag.String("redis-host", "localhost:6379", "redis host")
-	mongoHost     = flag.String("mongo-host", "localhost:27017", "mongo host")
+	redisHost     = flag.String("redis", "localhost:6379", "redis host:port")
+	mongoHost     = flag.String("mongo", "localhost:27017", "mongo host:port")
 	userAgent     = flag.String("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36", "browser user agent")
 
 	// memory queue (channels)
