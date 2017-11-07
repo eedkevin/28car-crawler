@@ -1,16 +1,16 @@
 ### Preparation
  - golang and glide
-    ```
-    brew install go glide
-    ```
+```
+brew install go glide
+```    
  - redis
-    ```
-    brew install redis
-    ```
+```
+brew install redis
+```
  - mongodb
-    ```
-    brew install mongodb
-    ```
+```
+brew install mongodb
+```
 
 ### Download the source code under your GOPATH/src
 ```
@@ -20,15 +20,15 @@ git clone <url-of-this-repo>
  
 ### Build
  - install dependencies
-    ```
-    cd <project-path>
-    glide install
-    ```
+```
+cd <project-path>
+glide install
+```
     
  - build go binary
-    ```
-    glide rebuild
-    ```
+```
+glide rebuild
+```
 
 ### Requisites
  - ensure redis is running on localhost
