@@ -19,6 +19,7 @@ var (
 	itemUrlPrefix = flag.String("item-url-prefix", "http://28car.com/sell_dsp.php?h_vid=", "item URL prefix")
 	redisHost     = flag.String("redis-host", "localhost:6379", "redis host")
 	mongoHost     = flag.String("mongo-host", "localhost:27017", "mongo host")
+	userAgent     = flag.String("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36", "browser user agent")
 
 	// memory queue (channels)
 	linkQueue *fetchbot.Queue
@@ -42,14 +43,17 @@ func main() {
 
 	linkFetcher := fetchbot.New(fetchbot.HandlerFunc(linkHandler))
 	linkFetcher.CrawlDelay = 10
+	linkFetcher.UserAgent = *userAgent
 	linkQueue = linkFetcher.Start()
 
 	pageFetcher := fetchbot.New(fetchbot.HandlerFunc(pageHandler))
 	pageFetcher.CrawlDelay = 10
+	pageFetcher.UserAgent = *userAgent
 	pageQueue = pageFetcher.Start()
 
 	itemFetcher := fetchbot.New(fetchbot.HandlerFunc(itemHandler))
 	itemFetcher.CrawlDelay = 10
+	itemFetcher.UserAgent = *userAgent
 	itemQueue = itemFetcher.Start()
 
 	// drop the seed, bang!
