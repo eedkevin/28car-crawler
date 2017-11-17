@@ -61,7 +61,10 @@ func main() {
 
 	go func() {
 		for {
-			msg, _ := pageQueueRedis.ReceiveMessage()
+			msg, err := pageQueueRedis.ReceiveMessage()
+			if err != nil {
+				panic(err)
+			}
 			fmt.Println("new page: " + msg.Payload)
 			pageQueue.SendStringGet(msg.Payload)
 		}
@@ -69,7 +72,10 @@ func main() {
 
 	go func() {
 		for {
-			msg, _ := itemQueueRedis.ReceiveMessage()
+			msg, err := itemQueueRedis.ReceiveMessage()
+			if err != nil {
+				panic(err)
+			}
 			fmt.Println("new item: " + msg.Payload)
 			itemQueue.SendStringGet(msg.Payload)
 		}
