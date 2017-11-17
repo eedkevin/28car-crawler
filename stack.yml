@@ -1,0 +1,38 @@
+version: "3"
+services:
+  28car-crawler:
+    build: .
+    image: 28car-crawler
+    networks:
+      - 28car
+    depends_on:
+      - mongo
+      - redis
+    environment:
+      - redis=redis:6379
+      - mongo=mongo:27017
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    networks:
+      - 28car
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    networks:
+      - 28car
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+networks:
+  28car:
