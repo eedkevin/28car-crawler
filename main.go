@@ -42,17 +42,17 @@ func main() {
 	itemQueueRedis = redis.New(*redisHost, "items")
 
 	linkFetcher := fetchbot.New(fetchbot.HandlerFunc(linkHandler))
-	linkFetcher.CrawlDelay = 10
+	linkFetcher.CrawlDelay = 20
 	linkFetcher.UserAgent = *userAgent
 	linkQueue = linkFetcher.Start()
 
 	pageFetcher := fetchbot.New(fetchbot.HandlerFunc(pageHandler))
-	pageFetcher.CrawlDelay = 10
+	pageFetcher.CrawlDelay = 20
 	pageFetcher.UserAgent = *userAgent
 	pageQueue = pageFetcher.Start()
 
 	itemFetcher := fetchbot.New(fetchbot.HandlerFunc(itemHandler))
-	itemFetcher.CrawlDelay = 10
+	itemFetcher.CrawlDelay = 20
 	itemFetcher.UserAgent = *userAgent
 	itemQueue = itemFetcher.Start()
 
