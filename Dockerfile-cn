@@ -1,0 +1,11 @@
+FROM golang:1.9
+
+WORKDIR /go/src/bitbucket.org/eedkevin/28car-crawler
+COPY . .
+
+RUN go get github.com/gpmgo/gopm
+
+RUN gopm get github.com/PuerkitoBio/fetchbot github.com/PuerkitoBio/goquery golang.org/x/text gopkg.in/mgo.v2 github.com/go-redis/redis
+RUN gopm install -v && cp .vendor/bin/* $GOPATH/bin/
+
+CMD 28car-crawler -redis $redis -mongo $mongo

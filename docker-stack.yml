@@ -1,7 +1,6 @@
 version: "3"
 services:
   28car-crawler:
-    build: .
     image: 28car-crawler
     networks:
       - 28car

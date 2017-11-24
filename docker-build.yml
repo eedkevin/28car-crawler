@@ -1,0 +1,5 @@
+version: "2"
+services:
+  28car-crawler:
+    build: .
+    image: 28car-crawler
