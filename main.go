@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"bitbucket.org/eedkevin/28car-crawler/database"
 	"bitbucket.org/eedkevin/28car-crawler/parser"
@@ -20,6 +21,7 @@ var (
 	redisHost     = flag.String("redis", "localhost:6379", "redis host:port")
 	mongoHost     = flag.String("mongo", "localhost:27017", "mongo host:port")
 	userAgent     = flag.String("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36", "browser user agent")
+	crawlDelay    = flag.Duration("crawl-delay", 10, "crawling delay")
 
 	// memory queue (channels)
 	linkQueue *fetchbot.Queue
@@ -42,17 +44,14 @@ func main() {
 	itemQueueRedis = redis.New(*redisHost, "items")
 
 	linkFetcher := fetchbot.New(fetchbot.HandlerFunc(linkHandler))
-	linkFetcher.CrawlDelay = 20
 	linkFetcher.UserAgent = *userAgent
 	linkQueue = linkFetcher.Start()
 
 	pageFetcher := fetchbot.New(fetchbot.HandlerFunc(pageHandler))
-	pageFetcher.CrawlDelay = 20
 	pageFetcher.UserAgent = *userAgent
 	pageQueue = pageFetcher.Start()
 
 	itemFetcher := fetchbot.New(fetchbot.HandlerFunc(itemHandler))
-	itemFetcher.CrawlDelay = 20
 	itemFetcher.UserAgent = *userAgent
 	itemQueue = itemFetcher.Start()
 
@@ -67,6 +66,7 @@ func main() {
 			}
 			fmt.Println("new page: " + msg.Payload)
 			pageQueue.SendStringGet(msg.Payload)
+			time.Sleep(*crawlDelay * time.Second)
 		}
 	}()
 
@@ -78,6 +78,7 @@ func main() {
 			}
 			fmt.Println("new item: " + msg.Payload)
 			itemQueue.SendStringGet(msg.Payload)
+			time.Sleep(*crawlDelay * time.Second)
 		}
 	}()
 
