@@ -15,15 +15,17 @@ services:
       replicas: 1
       placement:
         constraints: [node.role == manager]
-      restart_policy:
-        condition: on-failure
   mongo:
     image: mongo:latest
     networks:
       - 28car
+    volumes:
+      - /root/data/mongo:/data/db
     deploy:
       placement:
         constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
   redis:
     image: redis:latest
     networks:
@@ -31,5 +33,7 @@ services:
     deploy:
       placement:
         constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
 networks:
   28car:
