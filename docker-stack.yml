@@ -11,8 +11,6 @@ services:
       - redis=redis:6379
       - mongo=mongo:27017
     deploy:
-      mode: replicated
-      replicas: 1
       placement:
         constraints: [node.role == manager]
   mongo:
@@ -20,7 +18,7 @@ services:
     networks:
       - 28car
     volumes:
-      - /root/data/mongo:/data/db
+      - $HOME/data/mongo:/data/db
     deploy:
       placement:
         constraints: [node.role == manager]
