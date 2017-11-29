@@ -18,10 +18,11 @@ var (
 	seed          = flag.String("seed", "http://28car.com/sell_lst.php", "seed URL")
 	pageUrlPrefix = flag.String("page-url-prefix", "http://28car.com/sell_lst.php?h_page=", "page URL prefix")
 	itemUrlPrefix = flag.String("item-url-prefix", "http://28car.com/sell_dsp.php?h_vid=", "item URL prefix")
-	redisHost     = flag.String("redis", "localhost:6379", "redis host:port")
-	mongoHost     = flag.String("mongo", "localhost:27017", "mongo host:port")
+	redisHost     = flag.String("redis", "localhost:6379", "redishost:port")
+	mongoHost     = flag.String("mongo", "localhost:27017", "mongohost:port")
 	userAgent     = flag.String("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36", "browser user agent")
-	crawlDelay    = flag.Duration("crawl-delay", 10, "crawling delay")
+	delay         = flag.Duration("delay", 10, "crawling delay in second")
+	crawlerMode   = flag.String("crawler-mode", "", `crawler mode, "master" or "worker"`)
 
 	// memory queue (channels)
 	seedQueue *fetchbot.Queue
@@ -40,9 +41,21 @@ func main() {
 	fmt.Println("web crawler started")
 	flag.Parse()
 
-	db = database.New(*mongoHost)
+	switch *crawlerMode {
+	case "master":
+		runMaster()
+	case "worker":
+		runWorker()
+	default:
+		fmt.Println("error: crawler-mode not assigned")
+	}
+	fmt.Println("web crawler terminated")
+}
+
+func runMaster() {
+	fmt.Println("crawler-mode: master")
+
 	pageQueueRedis = redis.New(*redisHost, "pages")
-	itemQueueRedis = redis.New(*redisHost, "items")
 
 	seedFetcher := fetchbot.New(fetchbot.HandlerFunc(seedHandler))
 	seedFetcher.UserAgent = *userAgent
@@ -51,10 +64,6 @@ func main() {
 	pageFetcher := fetchbot.New(fetchbot.HandlerFunc(pageHandler))
 	pageFetcher.UserAgent = *userAgent
 	pageQueue = pageFetcher.Start()
-
-	itemFetcher := fetchbot.New(fetchbot.HandlerFunc(itemHandler))
-	itemFetcher.UserAgent = *userAgent
-	itemQueue = itemFetcher.Start()
 
 	// drop the seed, bang!
 	seedQueue.SendStringGet(*seed)
@@ -67,9 +76,21 @@ func main() {
 			}
 			fmt.Println("new page: " + msg.Payload)
 			pageQueue.SendStringGet(msg.Payload)
-			time.Sleep(*crawlDelay * time.Second)
+			time.Sleep(*delay * time.Second)
 		}
 	}()
+	pageQueue.Block()
+}
+
+func runWorker() {
+	fmt.Println("crawler-mode: worker")
+
+	db = database.New(*mongoHost)
+	itemQueueRedis = redis.New(*redisHost, "items")
+
+	itemFetcher := fetchbot.New(fetchbot.HandlerFunc(itemHandler))
+	itemFetcher.UserAgent = *userAgent
+	itemQueue = itemFetcher.Start()
 
 	go func() {
 		for {
@@ -79,13 +100,10 @@ func main() {
 			}
 			fmt.Println("new item: " + msg.Payload)
 			itemQueue.SendStringGet(msg.Payload)
-			time.Sleep(*crawlDelay * time.Second)
+			time.Sleep(*delay * time.Second)
 		}
 	}()
-
-	pageQueue.Block()
 	itemQueue.Block()
-	fmt.Println("web crawler terminated")
 }
 
 func seedHandler(ctx *fetchbot.Context, res *http.Response, err error) {
