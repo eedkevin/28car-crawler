@@ -24,7 +24,7 @@ var (
 	crawlDelay    = flag.Duration("crawl-delay", 10, "crawling delay")
 
 	// memory queue (channels)
-	linkQueue *fetchbot.Queue
+	seedQueue *fetchbot.Queue
 	pageQueue *fetchbot.Queue
 	itemQueue *fetchbot.Queue
 
@@ -44,9 +44,9 @@ func main() {
 	pageQueueRedis = redis.New(*redisHost, "pages")
 	itemQueueRedis = redis.New(*redisHost, "items")
 
-	linkFetcher := fetchbot.New(fetchbot.HandlerFunc(linkHandler))
-	linkFetcher.UserAgent = *userAgent
-	linkQueue = linkFetcher.Start()
+	seedFetcher := fetchbot.New(fetchbot.HandlerFunc(seedHandler))
+	seedFetcher.UserAgent = *userAgent
+	seedQueue = seedFetcher.Start()
 
 	pageFetcher := fetchbot.New(fetchbot.HandlerFunc(pageHandler))
 	pageFetcher.UserAgent = *userAgent
@@ -57,7 +57,7 @@ func main() {
 	itemQueue = itemFetcher.Start()
 
 	// drop the seed, bang!
-	linkQueue.SendStringGet(*seed)
+	seedQueue.SendStringGet(*seed)
 
 	go func() {
 		for {
@@ -88,7 +88,7 @@ func main() {
 	fmt.Println("web crawler terminated")
 }
 
-func linkHandler(ctx *fetchbot.Context, res *http.Response, err error) {
+func seedHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 	if err != nil {
 		fmt.Printf("error: %s\n", err)
 		return
