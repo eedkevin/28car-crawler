@@ -63,7 +63,7 @@ func ParsePage(res *http.Response) ([]string, error) {
 	doc.Find(itemSelector).Each(func(i int, s *goquery.Selection) {
 		vidHtml, exists := s.Find(itemUrlSelector).First().Attr("onclick")
 		if !exists {
-			fmt.Println("Page item contains no vid. Page - " + res.Request.URL.String())
+			fmt.Println("Warning, page item contains no vid. Page - " + res.Request.URL.String())
 			return
 		}
 		vid := regexVid.FindAllString(vidHtml, -1)
@@ -143,6 +143,22 @@ func ParseItem(res *http.Response) (*database.Car, error) {
 	updateTimeSelector := "body > table:nth-child(10) > tbody > tr > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(4) > tbody > tr > td > table > tbody > tr:nth-child(12) > td.formt"
 	updateTimeText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(doc.Find(updateTimeSelector).First().Text()))
 	fmt.Println("更新日期:" + updateTimeText)
+
+	commentSelector := "tr.formt"
+	comments := []database.Comment{}
+
+	doc.Find(commentSelector).Each(func(i int, s *goquery.Selection) {
+		replierSelector := "span[id^=reply_na_]"
+		replierText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(s.Find(replierSelector).First().Text()))
+		replyMsgSelector := "span[id^=reply_ms_]"
+		replyMsgText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(s.Find(replyMsgSelector).First().Text()))
+
+		comment := database.Comment{
+			Replier: replierText,
+			Msg:     replyMsgText,
+		}
+		comments = append(comments, comment)
+	})
 
 	hasher := md5.New()
 	hasher.Write([]byte(vid + updateTimeText))
