@@ -37,6 +37,7 @@ var (
 )
 
 func main() {
+	fmt.Println("web crawler started")
 	flag.Parse()
 
 	db = database.New(*mongoHost)
@@ -84,6 +85,7 @@ func main() {
 
 	pageQueue.Block()
 	itemQueue.Block()
+	fmt.Println("web crawler terminated")
 }
 
 func linkHandler(ctx *fetchbot.Context, res *http.Response, err error) {
@@ -99,11 +101,12 @@ func linkHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 		fmt.Printf("error on parsing page: %v\n", errParse)
 		return
 	} else if maxPageNumStr == "EOF" {
+		fmt.Println("reach the end of the page")
 		return
 	} else {
 		maxPageNum, strconvErr := strconv.Atoi(maxPageNumStr)
 		if strconvErr != nil {
-			fmt.Println("Error on converting string to int. value - " + maxPageNumStr)
+			fmt.Println("error on converting string to int. value - " + maxPageNumStr)
 			return
 		}
 		for i := 0; i < maxPageNum; i++ {
@@ -123,11 +126,12 @@ func pageHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 	vidArr, errParse := parser.ParsePage(res)
 	if errParse != nil {
 		// failback handling
-		fmt.Printf("error on parsing page: %v\n", errParse)
+		fmt.Printf("error on parsing page, will re-push page to redis: %v\n", errParse)
 		pageQueueRedis.Publish(res.Request.URL.String())
 	}
 
 	for _, vid := range vidArr {
+		fmt.Println("push item to redis: " + *itemUrlPrefix + vid)
 		itemQueueRedis.Publish(*itemUrlPrefix + vid)
 	}
 }
@@ -149,7 +153,7 @@ func itemHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 	errPersist := db.Persist(car)
 	if errPersist != nil {
 		// failback handling
-		fmt.Printf("error on persisting data: %v\n", errPersist)
+		fmt.Printf("error on persisting item, will re-push item to redis: %v\n", errPersist)
 		itemQueueRedis.Publish(ctx.Cmd.URL().String())
 	}
 }
