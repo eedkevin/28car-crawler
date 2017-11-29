@@ -37,7 +37,6 @@ func ParseLink(res *http.Response) (string, error) {
 	}
 
 	maxPageHtml, _ := doc.Find(maxPageSelector).First().Html()
-	fmt.Println(maxPageSelector)
 	pages := regexMaxPage.FindStringSubmatch(maxPageHtml)
 	if len(pages) > 0 {
 		// return the max page number

@@ -56,6 +56,7 @@ func runMaster() {
 	fmt.Println("crawler-mode: master")
 
 	pageQueueRedis = redis.New(*redisHost, "pages")
+	itemQueueRedis = redis.New(*redisHost, "items")
 
 	seedFetcher := fetchbot.New(fetchbot.HandlerFunc(seedHandler))
 	seedFetcher.UserAgent = *userAgent
