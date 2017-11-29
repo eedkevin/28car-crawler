@@ -1,5 +1,7 @@
 package database
 
+import "time"
+
 type Car struct {
 	Vid            string
 	Sid            string
@@ -17,6 +19,8 @@ type Car struct {
 	Comments       []Comment
 	UploadTime     string
 	Hash           string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type Comment struct {

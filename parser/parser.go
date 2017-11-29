@@ -146,7 +146,6 @@ func ParseItem(res *http.Response) (*database.Car, error) {
 
 	commentSelector := "tr.formt"
 	comments := []database.Comment{}
-
 	doc.Find(commentSelector).Each(func(i int, s *goquery.Selection) {
 		replierSelector := "span[id^=reply_na_]"
 		replierText, _, _ := transform.String(traditionalchinese.Big5.NewDecoder(), strings.TrimSpace(s.Find(replierSelector).First().Text()))
@@ -159,6 +158,7 @@ func ParseItem(res *http.Response) (*database.Car, error) {
 		}
 		comments = append(comments, comment)
 	})
+	fmt.Printf("留言: %v\n", comments)
 
 	hasher := md5.New()
 	hasher.Write([]byte(vid + updateTimeText))
@@ -178,6 +178,7 @@ func ParseItem(res *http.Response) (*database.Car, error) {
 		OrigPrice:      origPrice,
 		CurrPrice:      currPrice,
 		Contact:        contactText,
+		Comments:       comments,
 		UploadTime:     updateTimeText,
 		Hash:           hash,
 	}
