@@ -1,6 +1,6 @@
 version: "3"
 services:
-  28car-crawler:
+  28car-crawler-master:
     image: 28car-crawler
     networks:
       - 28car
@@ -10,9 +10,24 @@ services:
     environment:
       - redis=redis:6379
       - mongo=mongo:27017
+      - mode=master
     deploy:
       placement:
         constraints: [node.role == manager]
+  28car-crawler-worker:
+      image: 28car-crawler
+      networks:
+        - 28car
+      depends_on:
+        - mongo
+        - redis
+      environment:
+        - redis=redis:6379
+        - mongo=mongo:27017
+        - mode=worker
+      deploy:
+        placement:
+          constraints: [node.role == manager]
   mongo:
     image: mongo:latest
     networks:

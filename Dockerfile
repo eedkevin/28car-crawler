@@ -6,4 +6,4 @@ COPY . .
 RUN go-wrapper download
 RUN go-wrapper install
 
-CMD go-wrapper run -redis $redis -mongo $mongo
+CMD go-wrapper run -redis $redis -mongo $mongo -crawler-mode $mode
