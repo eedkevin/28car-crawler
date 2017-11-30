@@ -25,7 +25,7 @@ var (
 	regexOrgPrice = regexp.MustCompile(`原價.?\$\s?(?P<num>[+-]?[0-9]{1,3}(?:,?[0-9])*(?:\.[0-9]{1,2})?)`)
 )
 
-func ParseLink(res *http.Response) (string, error) {
+func ParseSeed(res *http.Response) (string, error) {
 	doc, _ := goquery.NewDocumentFromResponse(res)
 
 	maxPageSelector := "select#h_page > script"
@@ -51,7 +51,7 @@ func ParsePage(res *http.Response) ([]string, error) {
 
 	doc, _ := goquery.NewDocumentFromResponse(res)
 
-	itemSelector := "div#tch_box"
+	itemSelector := "td[id^=rw_]"
 	itemUrlSelector := "td[onclick^='goDsp']"
 
 	blockTestSelection := doc.Find(itemSelector)

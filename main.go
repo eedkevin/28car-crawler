@@ -114,7 +114,7 @@ func seedHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 	}
 	fmt.Printf("[%d] %s %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL())
 
-	maxPageNumStr, errParse := parser.ParseLink(res)
+	maxPageNumStr, errParse := parser.ParseSeed(res)
 	if errParse != nil {
 		// TODO: failback handling
 		fmt.Printf("error on parsing page: %v\n", errParse)
