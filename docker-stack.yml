@@ -43,6 +43,8 @@ services:
     image: redis:latest
     networks:
       - 28car
+    volumes:
+      - $HOME/data/redis:/data
     deploy:
       placement:
         constraints: [node.role == manager]
