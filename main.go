@@ -73,10 +73,16 @@ func runMaster() {
 		for {
 			msg, err := pageQueueRedis.ReceiveMessage()
 			if err != nil {
-				panic(err)
+				switch err.Error() {
+				case "redis: nil":
+					fmt.Println("redis pages queue empty ...")
+				default:
+					panic(err)
+				}
+			} else {
+				fmt.Println("new page: " + msg)
+				pageQueue.SendStringGet(msg)
 			}
-			fmt.Println("new page: " + msg.Payload)
-			pageQueue.SendStringGet(msg.Payload)
 			time.Sleep(*delay * time.Second)
 		}
 	}()
@@ -97,10 +103,16 @@ func runWorker() {
 		for {
 			msg, err := itemQueueRedis.ReceiveMessage()
 			if err != nil {
-				panic(err)
+				switch err.Error() {
+				case "redis: nil":
+					fmt.Println("redis items queue empty ...")
+				default:
+					panic(err)
+				}
+			} else {
+				fmt.Println("new item: " + msg)
+				itemQueue.SendStringGet(msg)
 			}
-			fmt.Println("new item: " + msg.Payload)
-			itemQueue.SendStringGet(msg.Payload)
 			time.Sleep(*delay * time.Second)
 		}
 	}()

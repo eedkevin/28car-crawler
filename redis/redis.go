@@ -6,7 +6,6 @@ import (
 
 type MyRedis struct {
 	client  *redisClient.Client
-	sub     *redisClient.PubSub
 	channel string
 }
 
@@ -15,16 +14,15 @@ func New(host string, channel string) *MyRedis {
 
 	redis := MyRedis{
 		client:  client,
-		sub:     client.Subscribe(channel),
 		channel: channel,
 	}
 	return &redis
 }
 
 func (redis *MyRedis) Publish(message string) {
-	redis.client.Publish(redis.channel, message)
+	redis.client.LPush(redis.channel, message)
 }
 
-func (redis *MyRedis) ReceiveMessage() (*redisClient.Message, error) {
-	return redis.sub.ReceiveMessage()
+func (redis *MyRedis) ReceiveMessage() (string, error) {
+	return redis.client.RPop(redis.channel).Result()
 }
