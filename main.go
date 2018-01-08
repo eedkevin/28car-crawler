@@ -159,6 +159,7 @@ func pageHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 		// failback handling
 		fmt.Printf("error on parsing page, will re-push page to redis: %v\n", errParse)
 		pageQueueRedis.Publish(res.Request.URL.String())
+		return
 	}
 
 	for _, vid := range vidArr {
@@ -179,6 +180,7 @@ func itemHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 		// failback handling
 		fmt.Printf("error on parsing page: %v\n", errParse)
 		itemQueueRedis.Publish(ctx.Cmd.URL().String())
+		return
 	}
 
 	errPersist := db.Persist(car)
@@ -186,6 +188,7 @@ func itemHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 		// failback handling
 		fmt.Printf("error on persisting item, will re-push item to redis: %v\n", errPersist)
 		itemQueueRedis.Publish(ctx.Cmd.URL().String())
+		return
 	}
 }
 
