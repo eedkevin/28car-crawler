@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	"bitbucket.org/eedkevin/28car-crawler/database"
-	"bitbucket.org/eedkevin/28car-crawler/parser"
-	"bitbucket.org/eedkevin/28car-crawler/redis"
+	"28car-crawler/database"
+	"28car-crawler/parser"
+	"28car-crawler/redis"
+
 	"github.com/PuerkitoBio/fetchbot"
 )
 

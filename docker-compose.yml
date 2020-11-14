@@ -1,0 +1,38 @@
+version: "3"
+services:
+  28car-crawler-master:
+    build: .
+    networks:
+      - 28car
+    depends_on:
+      - mongo
+      - redis
+    environment:
+      - redis=redis:6379
+      - mongo=mongo:27017
+      - mode=master
+  28car-crawler-worker:
+    build: .
+    networks:
+      - 28car
+    depends_on:
+      - mongo
+      - redis
+    environment:
+      - redis=redis:6379
+      - mongo=mongo:27017
+      - mode=worker
+  mongo:
+    image: mongo:latest
+    networks:
+      - 28car
+    # volumes:
+    #   - $HOME/data/mongo:/data/db
+  redis:
+    image: redis:latest
+    networks:
+      - 28car
+    # volumes:
+    #   - $HOME/data/redis:/data
+networks:
+  28car:

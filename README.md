@@ -1,6 +1,9 @@
+## Run via docker compose
+```
+docker-compose up --build -d
+```
 ---
-# Updates
-## Run within docker swarm
+## Run via docker swarm
  - install docker with version ^1.13
 ```
 brew cask install docker

@@ -10,7 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"bitbucket.org/eedkevin/28car-crawler/database"
+	"28car-crawler/database"
+
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/text/encoding/traditionalchinese"
 	"golang.org/x/text/transform"
